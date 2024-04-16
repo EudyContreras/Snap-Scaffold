@@ -1,5 +1,7 @@
 # Collapsible Snap Content Scaffold
 
+[![](https://jitpack.io/v/EudyContreras/Snap-Scaffold.svg)](https://jitpack.io/#EudyContreras/Snap-Scaffold)
+
 The Collapsible Snap Content Scaffold is a customizable Jetpack Compose component that provides a flexible and intuitive way to create collapsible snap behavior in scrollable UIs. This scaffold allows you to easily implement collapsible headers, sticky headers, and other dynamic content within your Compose applications.
 
 ## Features
@@ -33,7 +35,7 @@ To integrate the Collapsible Snap Content Scaffold into your Jetpack Compose pro
         bottomBar = { /* Bottom bar content */ },
         stickyHeader = { /* Sticky header content */ },
         collapsibleArea = { /* Collapsible area content */ },
-        content = { /* Main content */ }
+        ....
     )
     ```
 
@@ -54,7 +56,7 @@ CollapsibleSnapContentScaffold(
     bottomBar = { /* Bottom bar content */ },
     stickyHeader = { /* Sticky header content */ },
     collapsibleArea = { /* Collapsible area content */ },
-    content = { /* Main content */ }
+    ....
 )
 ```
 ## Contributing
