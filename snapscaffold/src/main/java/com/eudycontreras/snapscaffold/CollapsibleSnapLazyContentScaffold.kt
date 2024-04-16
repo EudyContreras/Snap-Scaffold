@@ -1,18 +1,18 @@
 package com.eudycontreras.snapscaffold
 
-import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -23,7 +23,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.UiComposable
 import androidx.compose.ui.composed
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.SubcomposeLayout
@@ -31,6 +30,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.util.fastMaxBy
@@ -43,13 +43,12 @@ import kotlin.math.roundToInt
  *
  * @param snapAreaHeight The height of the collapsible snap area.
  * @param isSnapEnabled Flag to enable or disable snapping behavior.
- * @param scrollState The [ScrollState] object to be used for tracking scroll position.
+ * @param listState The [LazyListState] object to be used for tracking scroll position.
  */
-@Stable
-class SnapScrollAreaState(
+class SnapLazyScrollAreaState(
     snapAreaHeight: Float,
     isSnapEnabled: Boolean,
-    val scrollState: ScrollState,
+    val listState: LazyListState,
 ) {
     var isSnapEnabled: Boolean by mutableStateOf(isSnapEnabled)
         private set
@@ -60,17 +59,11 @@ class SnapScrollAreaState(
     /**
      * Returns the current scroll offset within the snap area.
      */
-    @Stable
-    val scrollOffset: Float
-        get() = scrollState.mappedThreshold(snapAreaHeight)
-
-    @Stable
-    private fun ScrollState.mappedThreshold(height: Float): Float {
-        val scroll = value.f
-        if (height <= MIN_OFFSET) return MIN_OFFSET
-        val ratio = height / maxValue
-        val offset = scroll / maxValue
-        return mapRangeBounded(offset, MIN_OFFSET, ratio, MIN_OFFSET, MAX_OFFSET)
+    val scrollOffset: Float by derivedStateOf {
+        val index = listState.firstVisibleItemIndex
+        val offset = listState.firstVisibleItemScrollOffset
+        val mapped = mapRangeBounded(offset.f, MIN_OFFSET, snapAreaHeight)
+        if (index > 0) MAX_OFFSET else mapped.coerceFraction()
     }
 
     /**
@@ -95,49 +88,48 @@ class SnapScrollAreaState(
 /**
  * Creates and remembers a [SnapScrollAreaState].
  *
- * @param scrollState The [ScrollState] object to be used for tracking scroll position.
+ * @param listState The [LazyListState] object to be used for tracking scroll position.
  * @param initialSnapHeight The initial height of the snap area.
  * @param isSnapEnabled Flag to enable or disable snapping behavior.
  * @return [SnapScrollAreaState] object to manage snap behavior.
  */
 @Composable
-fun rememberSnapScrollAreaState(
-    scrollState: ScrollState = rememberScrollState(),
-    initialSnapHeight: Dp = Dp.Hairline,
-    isSnapEnabled: Boolean = true,
-): SnapScrollAreaState {
+fun rememberSnapLazyScrollAreaState(
+    listState: LazyListState = rememberLazyListState(),
+    initialSnapHeight: Dp = 1.dp,
+    isSnapEnabled: Boolean = true
+): SnapLazyScrollAreaState {
     val height = with(LocalDensity.current) { initialSnapHeight.toPx() }
-    return remember(initialSnapHeight, scrollState) {
-        SnapScrollAreaState(height, isSnapEnabled, scrollState)
+    return remember(initialSnapHeight, listState) {
+        SnapLazyScrollAreaState(height, isSnapEnabled, listState)
     }
 }
 
 /**
  * Receiver scope which is used by CollapsibleScaffold.
  */
-interface SnapScrollAreaStateScope {
+interface SnapLazyScrollAreaScope {
     val snapHeight: Float
     val scrollOffset: Float
-
-    @Composable
-    fun CollapsibleHeaderPaddingItem()
+    fun collapsibleHeaderPaddingItem(scope: LazyListScope)
 }
 
-private class SnapScrollAreaStateScopeImpl(
-    private val snapAreaScrollState: SnapScrollAreaState
-) : SnapScrollAreaStateScope {
+private class SnapLazyScrollAreaScopeImpl(
+    private val snapAreaScrollState: SnapLazyScrollAreaState
+) : SnapLazyScrollAreaScope {
     override val snapHeight: Float
         get() = snapAreaScrollState.snapAreaHeight
 
     override val scrollOffset: Float
         get() = snapAreaScrollState.scrollOffset
 
-    @Composable
-    override fun CollapsibleHeaderPaddingItem() {
-        Spacer(
-            modifier = Modifier
-                .height(height = with(LocalDensity.current) { snapHeight.toDp() })
-        )
+    override fun collapsibleHeaderPaddingItem(scope: LazyListScope) = with(scope) {
+        item {
+            Spacer(
+                modifier = Modifier
+                    .height(height = with(LocalDensity.current) { snapHeight.toDp() })
+            )
+        }
     }
 }
 
@@ -159,43 +151,42 @@ private class SnapScrollAreaStateScopeImpl(
  * @param content The composable function for the main content of the scaffold.
  */
 @Composable
-fun CollapsibleSnapContentScaffold(
+fun CollapsibleSnapContentLazyScaffold(
     modifier: Modifier = Modifier,
-    snapAreaState: SnapScrollAreaState,
+    snapAreaState: SnapLazyScrollAreaState,
     topBar: @Composable () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
     stickyHeader: @Composable () -> Unit = {},
     collapsibleArea: @Composable BoxScope.() -> Unit,
-    content: @Composable SnapScrollAreaStateScope.(bottomBarPadding: PaddingValues) -> Unit,
+    content: @Composable SnapLazyScrollAreaScope.(PaddingValues) -> Unit,
 ) {
-    val snapScope = remember(snapAreaState) { SnapScrollAreaStateScopeImpl(snapAreaState) }
+    val snapScope = remember(snapAreaState) { SnapLazyScrollAreaScopeImpl(snapAreaState) }
 
-    CollapsibleSnapContentScaffoldLayout(
-        modifier = modifier,
-        topBar = topBar,
+    CollapsibleSnapContentLazyScaffoldLayout(
+        modifier = modifier.fillMaxSize(),
         state = snapAreaState,
-        bottomBar = bottomBar,
+        topBar = topBar,
+        stickyHeader = stickyHeader,
         collapsibleArea = {
             Box(
                 modifier = Modifier
-                    .clipToBounds()
-                    .fillMaxWidth()
                     .onGloballyPositioned {
-                        snapAreaState.setCollapsibleSnapAreaHeight(it.size.height.toFloat())
+                        val height = it.size.height.f
+                        snapAreaState.setCollapsibleSnapAreaHeight(height)
                     },
                 content = collapsibleArea
             )
         },
-        stickyHeader = stickyHeader,
-        content = { padding -> snapScope.content(padding)}
+        bottomBar = bottomBar,
+        content = { snapScope.content(it) }
     )
 }
 
 @Composable
 @UiComposable
-private fun CollapsibleSnapContentScaffoldLayout(
+private fun CollapsibleSnapContentLazyScaffoldLayout(
     modifier: Modifier,
-    state: SnapScrollAreaState,
+    state: SnapLazyScrollAreaState,
     topBar: @Composable @UiComposable () -> Unit,
     stickyHeader: @Composable @UiComposable () -> Unit,
     collapsibleArea: @Composable @UiComposable () -> Unit,
@@ -209,22 +200,22 @@ private fun CollapsibleSnapContentScaffoldLayout(
 
         layout(layoutWidth, layoutHeight) {
             val topBarPlaceables = subcompose(
-                slotId = ScaffoldContent.TopBar,
+                slotId = LazyScaffoldContent.TopBar,
                 content = topBar
             ).fastMap { it.measure(looseConstraints) }
 
             val bottomBarPlaceables = subcompose(
-                slotId = ScaffoldContent.BottomBar,
+                slotId = LazyScaffoldContent.BottomBar,
                 content = bottomBar
             ).fastMap { it.measure(looseConstraints) }
 
             val collapseAreaPlaceables = subcompose(
-                slotId = ScaffoldContent.CollapseContent,
+                slotId = LazyScaffoldContent.CollapsibleContent,
                 content = collapsibleArea
             ).fastMap { it.measure(looseConstraints) }
 
             val stickyHeaderPlaceables = subcompose(
-                slotId = ScaffoldContent.StickyHeader,
+                slotId = LazyScaffoldContent.StickyHeader,
                 content = stickyHeader
             ).fastMap { it.measure(looseConstraints) }
 
@@ -234,7 +225,7 @@ private fun CollapsibleSnapContentScaffoldLayout(
             val stickyHeaderHeight = stickyHeaderPlaceables.fastMaxBy { it.height }?.height ?: 0
             val contentMaxHeight = layoutHeight - (topBarHeight + stickyHeaderHeight)
 
-            val bodyContentPlaceables = subcompose(slotId = ScaffoldContent.BodyContent) {
+            val bodyContentPlaceables = subcompose(slotId = LazyScaffoldContent.BodyContent) {
                 val bottomBarPadding = bottomBarHeight.toDp()
                 val innerPadding = PaddingValues(bottom = bottomBarPadding)
                 content(innerPadding)
@@ -261,23 +252,21 @@ private fun CollapsibleSnapContentScaffoldLayout(
     }
 }
 
-private enum class ScaffoldContent {
+private enum class LazyScaffoldContent {
     TopBar,
     BottomBar,
     BodyContent,
-    CollapseContent,
+    CollapsibleContent,
     StickyHeader
 }
 
-fun Modifier.snapScrollAreaBehaviour(
-    snapAreaState: SnapScrollAreaState
+fun Modifier.snapLazyScrollAreaBehaviour(
+    state: SnapLazyScrollAreaState,
 ): Modifier {
     return this.composed {
-        val snapHeight = snapAreaState.snapAreaHeight
-        val scrollState = snapAreaState.scrollState
         val allowSnapping = remember { mutableStateOf(value = false) }
-        val scrollDirection by scrollState.scrollDirection
-        val isDragged by scrollState.interactionSource.collectIsDraggedAsState()
+        val scrollDirection by state.listState.scrollDirection
+        val isDragged by state.listState.interactionSource.collectIsDraggedAsState()
 
         val nestedScrollConnection = remember {
             object : NestedScrollConnection {
@@ -285,8 +274,8 @@ fun Modifier.snapScrollAreaBehaviour(
                     consumed: Velocity,
                     available: Velocity
                 ): Velocity {
-                    val offset = snapAreaState.scrollOffset
-                    if (consumed.y.absoluteValue > MAX_VELOCITY && offset < 1F) {
+                    val offset = state.scrollOffset
+                    if (consumed.y.absoluteValue > MAX_VELOCITY && offset < MAX_OFFSET) {
                         allowSnapping.value = true
                     }
                     return super.onPostFling(consumed, available)
@@ -302,13 +291,11 @@ fun Modifier.snapScrollAreaBehaviour(
         val snapAreaStateIn by remember {
             derivedStateOf {
                 val threshold = SNAP_THRESHOLD
-                val offset = snapAreaState.scrollOffset
-                val allowSnap = allowSnapping.value && snapAreaState.isSnapEnabled
+                val offset = state.scrollOffset
+                val allowSnap = allowSnapping.value && state.isSnapEnabled
                 val offsetValue = if (!isDragged && allowSnap) {
-                    when {
-                        offset >= threshold && offset < MAX_OFFSET -> MAX_OFFSET
-                        offset < threshold && offset > MIN_OFFSET -> -MAX_OFFSET
-                        else -> MAX_OFFSET
+                    if (offset >= threshold && offset < MAX_OFFSET) MAX_OFFSET else {
+                        if (offset < threshold && offset > MIN_OFFSET) -MAX_OFFSET else MIN_OFFSET
                     }
                 } else MIN_OFFSET
                 when (offsetValue) {
@@ -330,18 +317,29 @@ fun Modifier.snapScrollAreaBehaviour(
             }
         }
 
-        LaunchedEffect(snapHeight) {
+        LaunchedEffect(state.snapAreaHeight) {
             snapshotFlow { snapAreaStateOut }.collectLatest {
-                when (it) {
-                    CollapsibleAreaValue.Expanded -> scrollState.animateScrollTo(0, ScrollSnapSpec)
-                    CollapsibleAreaValue.Collapsed -> scrollState.animateScrollTo(snapHeight.roundToInt(), ScrollSnapSpec)
-                    CollapsibleAreaValue.Neutral -> {}
+                val index = state.listState.firstVisibleItemIndex
+                if (index <= 0) {
+                    val current = state.listState.firstVisibleItemScrollOffset.f
+                    when (it) {
+                        CollapsibleAreaValue.Expanded -> {
+                            state.listState.animateScrollBy(-current, ScrollSnapSpec)
+                        }
+
+                        CollapsibleAreaValue.Collapsed -> {
+                            state.listState.animateScrollBy(
+                                (state.snapAreaHeight - current.absoluteValue),
+                                ScrollSnapSpec
+                            )
+                        }
+
+                        CollapsibleAreaValue.Neutral -> Unit
+                    }
                 }
             }
         }
 
-        Modifier
-            .nestedScroll(nestedScrollConnection)
-            .verticalScroll(scrollState)
+        Modifier.nestedScroll(nestedScrollConnection)
     }
 }

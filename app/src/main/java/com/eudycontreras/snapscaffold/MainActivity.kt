@@ -6,15 +6,19 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,7 +35,8 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    ScaffoldScreen()
+                    ScaffoldScreenLazyScrollState()
+                    // ScaffoldScreenScrollState()
                 }
             }
         }
@@ -39,11 +44,74 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ScaffoldScreen() {
+fun ScaffoldScreenLazyScrollState() {
+    val snapAreaState = rememberSnapLazyScrollAreaState()
+
+    CollapsibleSnapContentLazyScaffold(
+        snapAreaState = snapAreaState,
+        modifier = Modifier.background(Color.White),
+        topBar = {
+            Box(
+                modifier = Modifier
+                    .height(50.dp)
+                    .fillMaxWidth()
+                    .background(Color.Yellow)
+            )
+        },
+        collapsibleArea = {
+            Box(
+                modifier = Modifier
+                    .graphicsLayer {
+                        alpha = 1f - snapAreaState.scrollOffset
+                        translationY = lerp(0f, -size.height, snapAreaState.scrollOffset)
+                    }
+                    .height(200.dp)
+                    .fillMaxWidth()
+                    .background(Color.Green)
+            )
+        },
+        stickyHeader = {
+            Box(
+                modifier = Modifier
+                    .height(100.dp)
+                    .fillMaxWidth()
+                    .background(Color.Blue)
+            )
+        },
+        bottomBar = {
+            Box(
+                modifier = Modifier
+                    .height(50.dp)
+                    .fillMaxWidth()
+                    .background(Color.Yellow.copy(0.4f))
+            )
+        },
+    ) {
+        LazyColumn(
+            modifier = Modifier.snapLazyScrollAreaBehaviour(state = snapAreaState),
+            state = snapAreaState.listState,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = it,
+            content = {
+                collapsibleHeaderPaddingItem(this)
+                items(20) {
+                    Box(
+                        modifier = Modifier
+                            .height(80.dp)
+                            .fillMaxWidth()
+                            .background(Color.Red)
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun ScaffoldScreenScrollState() {
     val snapAreaState = rememberSnapScrollAreaState()
     CollapsibleSnapContentScaffold(
         snapAreaState = snapAreaState,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
         topBar = {
             Box(
                 modifier = Modifier
@@ -81,15 +149,24 @@ fun ScaffoldScreen() {
             )
         },
         content = { bottomBarPadding ->
-            repeat(20) {
-                Box(
-                    modifier = Modifier
-                        .height(80.dp)
-                        .fillMaxWidth()
-                        .background(Color.Red)
-                )
-            }
-            Spacer(modifier = Modifier.padding(bottomBarPadding))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .snapScrollAreaBehaviour(snapAreaState),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                content = {
+                    CollapsibleHeaderPaddingItem()
+                    repeat(20) {
+                        Box(
+                            modifier = Modifier
+                                .height(80.dp)
+                                .fillMaxWidth()
+                                .background(Color.Red)
+                        )
+                    }
+                    Spacer(modifier = Modifier.padding(bottomBarPadding))
+                }
+            )
         }
     )
 }
@@ -98,6 +175,14 @@ fun ScaffoldScreen() {
 @Composable
 fun ScaffoldScreenPreview() {
     SnapscaffoldTheme {
-        ScaffoldScreen()
+        ScaffoldScreenScrollState()
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ScaffoldLazyScreenPreview() {
+    SnapscaffoldTheme {
+        ScaffoldScreenLazyScrollState()
     }
 }
