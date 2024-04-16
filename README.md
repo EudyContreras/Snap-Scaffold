@@ -33,7 +33,7 @@ To integrate the Collapsible Snap Content Scaffold into your Jetpack Compose pro
         bottomBar = { /* Bottom bar content */ },
         stickyHeader = { /* Sticky header content */ },
         collapsibleArea = { /* Collapsible area content */ },
-        content = { /* Main content */ }
+        ....
     )
     ```
 
@@ -54,7 +54,7 @@ CollapsibleSnapContentScaffold(
     bottomBar = { /* Bottom bar content */ },
     stickyHeader = { /* Sticky header content */ },
     collapsibleArea = { /* Collapsible area content */ },
-    content = { /* Main content */ }
+    ....
 )
 ```
 ## Contributing
