@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -51,14 +52,25 @@ class SnapScrollAreaState(
     isSnapEnabled: Boolean,
     val scrollState: ScrollState,
 ) {
+    /**
+     * Boolean flag indicating whether snapping behavior is enabled for the scroll area.
+     * Setting this property to true enables snapping, while setting it to false disables snapping.
+     */
     var isSnapEnabled: Boolean by mutableStateOf(isSnapEnabled)
         private set
 
+    /**
+     * The height of the snap area, in pixels.
+     * This property represents the height of the collapsible area that will snap during scroll interactions.
+     */
     var snapAreaHeight: Float by mutableFloatStateOf(snapAreaHeight)
         private set
 
     /**
-     * Returns the current scroll offset within the snap area.
+     * Returns the current scroll offset of the snap area, in pixels.
+     * This property calculates the scroll offset based on the first visible item index and scroll offset of the list state.
+     * If the snap area is not at the top, the scroll offset is set to [1f] to maintain the collapsed state.
+     * Otherwise, it maps the scroll offset within the range [0f, 1f] based on the snap area height.
      */
     @Stable
     val scrollOffset: Float
@@ -113,12 +125,27 @@ fun rememberSnapScrollAreaState(
 }
 
 /**
- * Receiver scope which is used by CollapsibleScaffold.
+ * Interface representing the scope for a scrollable area with collapsible snap behavior.
+ * It provides access to properties and functions related to the snap behavior.
  */
 interface SnapScrollAreaStateScope {
+    /**
+     * The height of the snap area, in pixels.
+     * This property represents the height of the collapsible area that will snap during scroll interactions.
+     */
     val snapHeight: Float
+
+    /**
+     * The current scroll offset of the snap area, in pixels.
+     * This property indicates the current position of the snap area within the scrollable list.
+     */
     val scrollOffset: Float
 
+    /**
+     * Composable function that adds a collapsible header padding item to the scrollable column.
+     * This function allows the addition of a padding item at the top of the list,
+     * which acts as a collapsible header that collapses and expands along with the snap behavior.
+     */
     @Composable
     fun CollapsibleHeaderPaddingItem()
 }
@@ -269,6 +296,13 @@ private enum class ScaffoldContent {
     StickyHeader
 }
 
+/**
+ * Applies snap behavior to a lazy scrollable list, allowing it to collapse or expand based on user interactions.
+ * The list will snap to predefined positions when certain conditions are met.
+ *
+ * @param snapAreaState The state object containing information about the scroll behavior and snap area configuration.
+ * @return A modifier with the snap behavior applied to the lazy scrollable list.
+ */
 fun Modifier.snapScrollAreaBehaviour(
     snapAreaState: SnapScrollAreaState
 ): Modifier {
