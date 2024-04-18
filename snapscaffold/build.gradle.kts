@@ -17,9 +17,8 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
     publishing {
-        multipleVariants {
-            allVariants()
-            withJavadocJar()
+        singleVariant("release") {
+            withSourcesJar()
         }
     }
     buildTypes {
@@ -45,15 +44,22 @@ android {
         kotlinCompilerExtensionVersion = "1.5.10"
     }
 }
-afterEvaluate {
-    publishing {
-        publications {
-            create<MavenPublication>("maven") {
+publishing {
+    publications {
+        register<MavenPublication>("release") {
+            groupId = "com.github.eudycontreras"
+            artifactId = "snapscaffold"
+            version = "1.0"
+
+            afterEvaluate {
                 from(components["release"])
-                groupId = "com.github.eudycontreras"
-                artifactId = "snapscaffold"
-                version = "1.0"
             }
+        }
+    }
+    repositories {
+        maven {
+            name = "snapscaffold"
+            url = uri("${project.layout.buildDirectory}/repo")
         }
     }
 }
