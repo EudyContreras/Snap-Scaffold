@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.jetbrainsKotlinAndroid)
+    `maven-publish`
 }
 
 android {
@@ -9,11 +10,18 @@ android {
 
     defaultConfig {
         minSdk = 28
-
+        aarMetadata {
+            minCompileSdk = 28
+        }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
-
+    publishing {
+        multipleVariants {
+            allVariants()
+            withJavadocJar()
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -24,11 +32,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_19
+        targetCompatibility = JavaVersion.VERSION_19
     }
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8.toString()
+        jvmTarget = JavaVersion.VERSION_19.toString()
     }
     buildFeatures {
         compose = true
@@ -37,7 +45,18 @@ android {
         kotlinCompilerExtensionVersion = "1.5.10"
     }
 }
-
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("maven") {
+                from(components["release"])
+                groupId = "com.github.eudycontreras"
+                artifactId = "snapscaffold"
+                version = "1.0"
+            }
+        }
+    }
+}
 dependencies {
 
     implementation(libs.androidx.core.ktx)
