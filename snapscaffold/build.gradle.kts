@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.jetbrainsKotlinAndroid)
-    `maven-publish`
+    id("maven-publish")
 }
 
 android {
@@ -19,6 +19,7 @@ android {
     publishing {
         singleVariant("release") {
             withSourcesJar()
+            withJavadocJar()
         }
     }
     buildTypes {
@@ -31,11 +32,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_19
-        targetCompatibility = JavaVersion.VERSION_19
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_19.toString()
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
     buildFeatures {
         compose = true
@@ -43,14 +44,14 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.10"
     }
+    setPublishNonDefault(true)
 }
 publishing {
     publications {
         register<MavenPublication>("release") {
             groupId = "com.github.eudycontreras"
-            artifactId = "snapscaffold"
+            artifactId = "snap-scaffold"
             version = "1.0"
-
             afterEvaluate {
                 from(components["release"])
             }
@@ -58,7 +59,10 @@ publishing {
     }
     repositories {
         maven {
-            name = "snapscaffold"
+            url = uri("https://jitpack.io")
+        }
+        maven {
+            name = "snap-scaffold"
             url = uri("${project.layout.buildDirectory}/repo")
         }
     }
