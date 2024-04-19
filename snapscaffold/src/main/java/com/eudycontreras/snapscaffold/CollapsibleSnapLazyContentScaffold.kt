@@ -1,6 +1,5 @@
 package com.eudycontreras.snapscaffold
 
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
@@ -8,12 +7,14 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -24,6 +25,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.UiComposable
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.SubcomposeLayout
@@ -46,6 +48,7 @@ import kotlin.math.roundToInt
  * @param isSnapEnabled Flag to enable or disable snapping behavior.
  * @param listState The [LazyListState] object to be used for tracking scroll position.
  */
+@Stable
 class SnapLazyScrollAreaState(
     snapAreaHeight: Float,
     isSnapEnabled: Boolean,
@@ -203,14 +206,17 @@ fun CollapsibleSnapContentLazyScaffold(
         stickyHeader = stickyHeader,
         collapsibleArea = {
             Box(
-                modifier = Modifier.onGloballyPositioned {
-                    snapAreaState.setCollapsibleSnapAreaHeight(it.size.height.f)
-                },
+                modifier = Modifier
+                    .clipToBounds()
+                    .fillMaxWidth()
+                    .onGloballyPositioned {
+                        snapAreaState.setCollapsibleSnapAreaHeight(it.size.height.f)
+                    },
                 content = collapsibleArea
             )
         },
         bottomBar = bottomBar,
-        content = { snapScope.content(it) }
+        content = { padding -> snapScope.content(padding) }
     )
 }
 
@@ -303,13 +309,18 @@ fun Modifier.snapLazyScrollAreaBehaviour(
     snapAreaState: SnapLazyScrollAreaState,
 ): Modifier {
     return this.composed {
+        val snapHeight = snapAreaState.snapAreaHeight
+        val listState = snapAreaState.listState
         val allowSnapping = remember { mutableStateOf(value = false) }
-        val scrollDirection by snapAreaState.listState.scrollDirection
-        val isDragged by snapAreaState.listState.interactionSource.collectIsDraggedAsState()
+        val scrollDirection by listState.scrollDirection
+        val isDragged by listState.interactionSource.collectIsDraggedAsState()
 
         val nestedScrollConnection = remember {
             object : NestedScrollConnection {
-                override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                override suspend fun onPostFling(
+                    consumed: Velocity,
+                    available: Velocity
+                ): Velocity {
                     val offset = snapAreaState.scrollOffset
                     if (consumed.y.absoluteValue > MAX_VELOCITY && offset < MAX_OFFSET) {
                         allowSnapping.value = true
@@ -330,8 +341,10 @@ fun Modifier.snapLazyScrollAreaBehaviour(
                 val offset = snapAreaState.scrollOffset
                 val allowSnap = allowSnapping.value && snapAreaState.isSnapEnabled
                 val offsetValue = if (!isDragged && allowSnap) {
-                    if (offset >= threshold && offset < MAX_OFFSET) MAX_OFFSET else {
-                        if (offset < threshold && offset > MIN_OFFSET) -MAX_OFFSET else MIN_OFFSET
+                    when {
+                        (offset >= threshold && offset < MAX_OFFSET) -> MAX_OFFSET
+                        (offset < threshold && offset > MIN_OFFSET) -> - MAX_OFFSET
+                        else -> MIN_OFFSET
                     }
                 } else MIN_OFFSET
                 when (offsetValue) {
@@ -353,14 +366,13 @@ fun Modifier.snapLazyScrollAreaBehaviour(
             }
         }
 
-        LaunchedEffect(snapAreaState.snapAreaHeight) {
+        LaunchedEffect(snapHeight) {
             snapshotFlow { snapAreaStateOut }.collectLatest {
-                val index = snapAreaState.listState.firstVisibleItemIndex
-                if (index <= 0) {
-                    val current = snapAreaState.listState.firstVisibleItemScrollOffset.f
+                if (listState.firstVisibleItemIndex <= 0) {
+                    val current = listState.firstVisibleItemScrollOffset.f
                     when (it) {
-                        CollapsibleAreaValue.Expanded -> snapAreaState.listState.animateScrollBy(-current, ScrollSnapSpec)
-                        CollapsibleAreaValue.Collapsed -> snapAreaState.listState.animateScrollBy((snapAreaState.snapAreaHeight - current.absoluteValue), ScrollSnapSpec)
+                        CollapsibleAreaValue.Expanded -> listState.animateScrollBy(-current, ScrollSnapSpec)
+                        CollapsibleAreaValue.Collapsed -> listState.animateScrollBy((snapHeight - current.absoluteValue), ScrollSnapSpec)
                         CollapsibleAreaValue.Neutral -> Unit
                     }
                 }

@@ -3,10 +3,8 @@ package com.eudycontreras.snapscaffold
 internal const val MAX_OFFSET = 1f
 internal const val MIN_OFFSET = 0f
 
-val Int.f: Float
+internal val Int.f: Float
     get() = this.toFloat()
-
-fun Float.coerceFraction() = this.coerceIn(MIN_OFFSET, MAX_OFFSET)
 
 /**
  * Maps the given value from the specified minimum to the specified
@@ -29,7 +27,7 @@ fun Float.coerceFraction() = this.coerceIn(MIN_OFFSET, MAX_OFFSET)
  * @param toMin the minimum value to map to
  * @param toMax the maximum value to map to
  */
-fun mapRange(
+internal fun mapRange(
     value: Float,
     fromMin: Float = MIN_OFFSET,
     fromMax: Float = MAX_OFFSET,
@@ -63,7 +61,7 @@ fun mapRange(
  * @param clampMin the minimum value that the function can return
  * @param clampMax the maximum value that the function can return
  */
-fun mapRangeBounded(
+internal fun mapRangeBounded(
     value: Float,
     fromMin: Float = MIN_OFFSET,
     fromMax: Float = MAX_OFFSET,

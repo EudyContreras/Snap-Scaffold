@@ -1,186 +1,98 @@
 package com.eudycontreras.snapscaffold
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.lerp
+import androidx.compose.ui.util.fastForEachIndexed
+import androidx.core.view.WindowCompat
+import com.eudycontreras.snapscaffold.examples.ScaffoldScreenLazyScrollState
+import com.eudycontreras.snapscaffold.examples.ScaffoldScreenScrollState
+import com.eudycontreras.snapscaffold.ui.theme.Purple80
+import com.eudycontreras.snapscaffold.ui.theme.PurpleDark
 import com.eudycontreras.snapscaffold.ui.theme.SnapscaffoldTheme
+import kotlinx.coroutines.launch
+
+internal enum class PageType {
+    Scrollable, LazyScrollable
+}
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        )
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                Color.White.toArgb(),
+                Color.White.toArgb()
+            )
+        )
+
         super.onCreate(savedInstanceState)
         setContent {
             SnapscaffoldTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    modifier = Modifier
+                        .background(PurpleDark)
+                        .statusBarsPadding()
+                        .fillMaxSize(),
+                    color = Purple80
                 ) {
-                    ScaffoldScreenLazyScrollState()
-                    //ScaffoldScreenScrollState()
+                    val pages = listOf(PageType.Scrollable, PageType.LazyScrollable)
+                    val scope = rememberCoroutineScope()
+                    val pagerState = rememberPagerState(pageCount = { pages.size} )
+                    Column {
+                        TabRow(
+                            modifier = Modifier.height(50.dp),
+                            contentColor = Color.White,
+                            containerColor = PurpleDark,
+                            selectedTabIndex = pagerState.currentPage,
+                            divider = { }
+                        ) {
+                            pages.fastForEachIndexed { index, pageType ->
+                                Tab(
+                                    modifier = Modifier
+                                        .height(50.dp),
+                                    selected = index == pagerState.currentPage,
+                                    onClick = { scope.launch { pagerState.animateScrollToPage(index) } }
+                                ) {
+                                    Text(text = pageType.name)
+                                }
+                            }
+                        }
+                        HorizontalPager(state = pagerState) {
+                            val page = pages[it]
+                            when (page) {
+                                PageType.LazyScrollable -> ScaffoldScreenLazyScrollState()
+                                PageType.Scrollable -> ScaffoldScreenScrollState()
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun ScaffoldScreenLazyScrollState() {
-    val snapAreaState = rememberSnapLazyScrollAreaState()
-
-    CollapsibleSnapContentLazyScaffold(
-        snapAreaState = snapAreaState,
-        modifier = Modifier.background(Color.White),
-        topBar = {
-            Box(
-                modifier = Modifier
-                    .height(50.dp)
-                    .fillMaxWidth()
-                    .background(Color.Yellow)
-            )
-        },
-        collapsibleArea = {
-            Box(
-                modifier = Modifier
-                    .graphicsLayer {
-                        alpha = 1f - snapAreaState.scrollOffset
-                        translationY = lerp(0f, -size.height, snapAreaState.scrollOffset)
-                    }
-                    .height(200.dp)
-                    .fillMaxWidth()
-                    .background(Color.Green)
-            )
-        },
-        stickyHeader = {
-            Box(
-                modifier = Modifier
-                    .height(100.dp)
-                    .fillMaxWidth()
-                    .background(Color.Blue)
-            )
-        },
-        bottomBar = {
-            Box(
-                modifier = Modifier
-                    .height(50.dp)
-                    .fillMaxWidth()
-                    .background(Color.Yellow.copy(0.4f))
-            )
-        },
-    ) {
-        LazyColumn(
-            modifier = Modifier.snapLazyScrollAreaBehaviour(snapAreaState = snapAreaState),
-            state = snapAreaState.listState,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = it,
-            content = {
-                collapsibleHeaderPaddingItem(this)
-                items(20) {
-                    Box(
-                        modifier = Modifier
-                            .height(80.dp)
-                            .fillMaxWidth()
-                            .background(Color.Red)
-                    )
-                }
-            }
-        )
-    }
-}
-
-@Composable
-fun ScaffoldScreenScrollState() {
-    val snapAreaState = rememberSnapScrollAreaState()
-    CollapsibleSnapContentScaffold(
-        snapAreaState = snapAreaState,
-        topBar = {
-            Box(
-                modifier = Modifier
-                    .height(50.dp)
-                    .fillMaxWidth()
-                    .background(Color.Yellow)
-            )
-        },
-        collapsibleArea = {
-            Box(
-                modifier = Modifier
-                    .graphicsLayer {
-                        alpha = 1f - snapAreaState.scrollOffset
-                        translationY = lerp(0f, -size.height, snapAreaState.scrollOffset)
-                    }
-                    .height(200.dp)
-                    .fillMaxWidth()
-                    .background(Color.Green)
-            )
-        },
-        stickyHeader = {
-            Box(
-                modifier = Modifier
-                    .height(100.dp)
-                    .fillMaxWidth()
-                    .background(Color.Blue)
-            )
-        },
-        bottomBar = {
-            Box(
-                modifier = Modifier
-                    .height(50.dp)
-                    .fillMaxWidth()
-                    .background(Color.Yellow.copy(0.4f))
-            )
-        },
-        content = { bottomBarPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .snapScrollAreaBehaviour(snapAreaState),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                content = {
-                    CollapsibleHeaderPaddingItem()
-                    repeat(20) {
-                        Box(
-                            modifier = Modifier
-                                .height(80.dp)
-                                .fillMaxWidth()
-                                .background(Color.Red)
-                        )
-                    }
-                    Spacer(modifier = Modifier.padding(bottomBarPadding))
-                }
-            )
-        }
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ScaffoldScreenPreview() {
-    SnapscaffoldTheme {
-        ScaffoldScreenScrollState()
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ScaffoldLazyScreenPreview() {
-    SnapscaffoldTheme {
-        ScaffoldScreenLazyScrollState()
     }
 }

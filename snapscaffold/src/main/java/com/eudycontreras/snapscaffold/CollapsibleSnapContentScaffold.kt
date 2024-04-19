@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -208,13 +207,13 @@ fun CollapsibleSnapContentScaffold(
                     .clipToBounds()
                     .fillMaxWidth()
                     .onGloballyPositioned {
-                        snapAreaState.setCollapsibleSnapAreaHeight(it.size.height.toFloat())
+                        snapAreaState.setCollapsibleSnapAreaHeight(it.size.height.f)
                     },
                 content = collapsibleArea
             )
         },
         stickyHeader = stickyHeader,
-        content = { padding -> snapScope.content(padding)}
+        content = { padding -> snapScope.content(padding) }
     )
 }
 
@@ -320,7 +319,7 @@ fun Modifier.snapScrollAreaBehaviour(
                     available: Velocity
                 ): Velocity {
                     val offset = snapAreaState.scrollOffset
-                    if (consumed.y.absoluteValue > MAX_VELOCITY && offset < 1F) {
+                    if (consumed.y.absoluteValue > MAX_VELOCITY && offset < MAX_OFFSET) {
                         allowSnapping.value = true
                     }
                     return super.onPostFling(consumed, available)
@@ -342,7 +341,7 @@ fun Modifier.snapScrollAreaBehaviour(
                     when {
                         offset >= threshold && offset < MAX_OFFSET -> MAX_OFFSET
                         offset < threshold && offset > MIN_OFFSET -> -MAX_OFFSET
-                        else -> MAX_OFFSET
+                        else -> MIN_OFFSET
                     }
                 } else MIN_OFFSET
                 when (offsetValue) {
@@ -369,7 +368,7 @@ fun Modifier.snapScrollAreaBehaviour(
                 when (it) {
                     CollapsibleAreaValue.Expanded -> scrollState.animateScrollTo(0, ScrollSnapSpec)
                     CollapsibleAreaValue.Collapsed -> scrollState.animateScrollTo(snapHeight.roundToInt(), ScrollSnapSpec)
-                    CollapsibleAreaValue.Neutral -> {}
+                    CollapsibleAreaValue.Neutral -> Unit
                 }
             }
         }
