@@ -27,13 +27,14 @@ import androidx.compose.ui.util.fastForEachIndexed
 import androidx.core.view.WindowCompat
 import com.eudycontreras.snapscaffold.examples.ScaffoldScreenLazyScrollState
 import com.eudycontreras.snapscaffold.examples.ScaffoldScreenScrollState
+import com.eudycontreras.snapscaffold.examples.ScaffoldScreenScrollTabsState
 import com.eudycontreras.snapscaffold.ui.theme.Purple80
 import com.eudycontreras.snapscaffold.ui.theme.PurpleDark
 import com.eudycontreras.snapscaffold.ui.theme.SnapscaffoldTheme
 import kotlinx.coroutines.launch
 
 internal enum class PageType {
-    Scrollable, LazyScrollable
+    ScrollableTabs, Scrollable, LazyScrollable
 }
 
 class MainActivity : ComponentActivity() {
@@ -61,7 +62,7 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize(),
                     color = Purple80
                 ) {
-                    val pages = listOf(PageType.Scrollable, PageType.LazyScrollable)
+                    val pages = listOf(PageType.ScrollableTabs, PageType.Scrollable, PageType.LazyScrollable)
                     val scope = rememberCoroutineScope()
                     val pagerState = rememberPagerState(pageCount = { pages.size} )
                     Column {
@@ -86,6 +87,7 @@ class MainActivity : ComponentActivity() {
                         HorizontalPager(state = pagerState) {
                             val page = pages[it]
                             when (page) {
+                                PageType.ScrollableTabs -> ScaffoldScreenScrollTabsState()
                                 PageType.LazyScrollable -> ScaffoldScreenLazyScrollState()
                                 PageType.Scrollable -> ScaffoldScreenScrollState()
                             }

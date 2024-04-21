@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,21 +34,45 @@ import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.util.fastMaxBy
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
+
+/**
+ * Data holder which contains relevant scroll information
+ * @param value The current scroll value
+ * @param maxValue The maximum scroll value
+ */
+data class ScrollPosition(
+    val value: Int,
+    private val maxValue: Int
+) {
+    @Stable
+    internal fun getOffset(height: Float): Float {
+        val scroll = value.f
+        if (height <= MIN_OFFSET) return MIN_OFFSET
+        val ratio = height / maxValue
+        val offset = scroll / maxValue
+        return mapRangeBounded(offset, MIN_OFFSET, ratio, MIN_OFFSET, MAX_OFFSET)
+    }
+}
+
+fun ScrollState.getScrollPosition(): ScrollPosition {
+    return ScrollPosition(value, maxValue)
+}
 
 /**
  * State holder for managing the collapsible snap behavior of a scrollable area.
  *
  * @param snapAreaHeight The height of the collapsible snap area.
  * @param isSnapEnabled Flag to enable or disable snapping behavior.
- * @param scrollState The [ScrollState] object to be used for tracking scroll position.
+ * @param scrollInfo The [ScrollPosition] object to be used for tracking scroll position.
  */
 @Stable
 class SnapScrollAreaState(
     snapAreaHeight: Float,
     isSnapEnabled: Boolean,
-    val scrollState: ScrollState,
+    scrollInfo: ScrollPosition
 ) {
     /**
      * Boolean flag indicating whether snapping behavior is enabled for the scroll area.
@@ -65,6 +88,15 @@ class SnapScrollAreaState(
     var snapAreaHeight: Float by mutableFloatStateOf(snapAreaHeight)
         private set
 
+    val isExpanded: Boolean by derivedStateOf { scrollOffset <= 0.5f }
+
+    /**
+     * State holder which contains information about the current scroll value
+     * of the associated scrollable content
+     */
+    var scrollPosition: ScrollPosition by mutableStateOf(scrollInfo)
+        private set
+
     /**
      * Returns the current scroll offset of the snap area, in pixels.
      * This property calculates the scroll offset based on the first visible item index and scroll offset of the list state.
@@ -73,15 +105,10 @@ class SnapScrollAreaState(
      */
     @Stable
     val scrollOffset: Float
-        get() = scrollState.mappedThreshold(snapAreaHeight)
+        get() = scrollPosition.getOffset(snapAreaHeight)
 
-    @Stable
-    private fun ScrollState.mappedThreshold(height: Float): Float {
-        val scroll = value.f
-        if (height <= MIN_OFFSET) return MIN_OFFSET
-        val ratio = height / maxValue
-        val offset = scroll / maxValue
-        return mapRangeBounded(offset, MIN_OFFSET, ratio, MIN_OFFSET, MAX_OFFSET)
+    fun updateScrollOffset(scrollInfo: ScrollPosition) {
+        scrollPosition = scrollInfo
     }
 
     /**
@@ -106,20 +133,40 @@ class SnapScrollAreaState(
 /**
  * Creates and remembers a [SnapScrollAreaState].
  *
- * @param scrollState The [ScrollState] object to be used for tracking scroll position.
  * @param initialSnapHeight The initial height of the snap area.
  * @param isSnapEnabled Flag to enable or disable snapping behavior.
+ * @param scrollInfo The [ScrollPosition] object to be used for tracking scroll position.
  * @return [SnapScrollAreaState] object to manage snap behavior.
  */
 @Composable
 fun rememberSnapScrollAreaState(
-    scrollState: ScrollState = rememberScrollState(),
     initialSnapHeight: Dp = Dp.Hairline,
     isSnapEnabled: Boolean = true,
+    scrollInfo: ScrollPosition = ScrollPosition(0, 0)
 ): SnapScrollAreaState {
     val height = with(LocalDensity.current) { initialSnapHeight.toPx() }
-    return remember(initialSnapHeight, scrollState) {
-        SnapScrollAreaState(height, isSnapEnabled, scrollState)
+    return remember(initialSnapHeight, isSnapEnabled, scrollInfo) {
+        SnapScrollAreaState(height, isSnapEnabled, scrollInfo)
+    }
+}
+
+/**
+ * Creates and remembers a [SnapScrollAreaState].
+ *
+ * @param initialSnapHeight The initial height of the snap area.
+ * @param isSnapEnabled Flag to enable or disable snapping behavior.
+ * @param scrollState The [ScrollState] object to be used for tracking scroll position.
+ * @return [SnapScrollAreaState] object to manage snap behavior.
+ */
+@Composable
+fun rememberSnapScrollAreaState(
+    initialSnapHeight: Dp = Dp.Hairline,
+    isSnapEnabled: Boolean = true,
+    scrollState: ScrollState
+): SnapScrollAreaState {
+    val height = with(LocalDensity.current) { initialSnapHeight.toPx() }
+    return remember(initialSnapHeight, isSnapEnabled, scrollState) {
+        SnapScrollAreaState(height, isSnapEnabled, scrollState.getScrollPosition())
     }
 }
 
@@ -267,12 +314,11 @@ private fun CollapsibleSnapContentScaffoldLayout(
             }.fastMap { it.measure(looseConstraints.copy(maxHeight = contentMaxHeight)) }
 
             val offset = (MAX_OFFSET - state.scrollOffset.absoluteValue)
-
-            collapseAreaPlaceables.fastForEach {
-                it.place(0, topBarHeight)
-            }
             bodyContentPlaceables.fastForEach {
                 it.place(0, stickyHeaderHeight + topBarHeight)
+            }
+            collapseAreaPlaceables.fastForEach {
+                it.place(0, topBarHeight)
             }
             stickyHeaderPlaceables.fastForEach {
                 it.place(0, (collapseAreaHeight * offset).roundToInt() + topBarHeight)
@@ -303,11 +349,12 @@ private enum class ScaffoldContent {
  * @return A modifier with the snap behavior applied to the lazy scrollable list.
  */
 fun Modifier.snapScrollAreaBehaviour(
-    snapAreaState: SnapScrollAreaState
+    snapAreaState: SnapScrollAreaState,
+    scrollState: ScrollState,
+    isEnabled: Boolean = true
 ): Modifier {
     return this.composed {
         val snapHeight = snapAreaState.snapAreaHeight
-        val scrollState = snapAreaState.scrollState
         val allowSnapping = remember { mutableStateOf(value = false) }
         val scrollDirection by scrollState.scrollDirection
         val isDragged by scrollState.interactionSource.collectIsDraggedAsState()
@@ -363,12 +410,41 @@ fun Modifier.snapScrollAreaBehaviour(
             }
         }
 
-        LaunchedEffect(snapHeight) {
-            snapshotFlow { snapAreaStateOut }.collectLatest {
-                when (it) {
-                    CollapsibleAreaValue.Expanded -> scrollState.animateScrollTo(0, ScrollSnapSpec)
-                    CollapsibleAreaValue.Collapsed -> scrollState.animateScrollTo(snapHeight.roundToInt(), ScrollSnapSpec)
-                    CollapsibleAreaValue.Neutral -> Unit
+        LaunchedEffect(isEnabled) {
+            launch {
+                if (!snapAreaState.isExpanded && scrollState.value < snapAreaState.snapAreaHeight) {
+                    val isZero1 = snapAreaState.scrollPosition.value == 0
+                    val isZero2 = scrollState.value == 0
+                    val bothZero = isZero1 && isZero2
+                    if (!bothZero) {
+                        scrollState.scrollTo(
+                            snapAreaState.scrollPosition.value.coerceAtMost(snapAreaState.snapAreaHeight.toInt())
+                        )
+                    }
+                }
+                if (isEnabled) {
+                    snapshotFlow {
+                        ScrollPosition(scrollState.value, scrollState.maxValue)
+                    }.collectLatest { info ->
+                        snapAreaState.updateScrollOffset(info)
+                    }
+                }
+            }
+            launch {
+                snapshotFlow { snapAreaStateOut }.collectLatest {
+                    when (it) {
+                        CollapsibleAreaValue.Expanded -> scrollState.animateScrollTo(
+                            0,
+                            ScrollSnapSpec
+                        )
+
+                        CollapsibleAreaValue.Collapsed -> scrollState.animateScrollTo(
+                            snapHeight.roundToInt(),
+                            ScrollSnapSpec
+                        )
+
+                        CollapsibleAreaValue.Neutral -> Unit
+                    }
                 }
             }
         }
