@@ -81,6 +81,9 @@ class SnapScrollAreaState(
     var isSnapEnabled: Boolean by mutableStateOf(isSnapEnabled)
         private set
 
+    var isSnapping: Boolean by mutableStateOf(false)
+        private set
+
     /**
      * The height of the snap area, in pixels.
      * This property represents the height of the collapsible area that will snap during scroll interactions.
@@ -127,6 +130,10 @@ class SnapScrollAreaState(
      */
     fun enableSnapping(isEnable: Boolean) {
         this.isSnapEnabled = isEnable
+    }
+
+    fun notifySnapping(isSnapping: Boolean) {
+        this.isSnapping = isSnapping
     }
 }
 
@@ -410,7 +417,7 @@ fun Modifier.snapScrollAreaBehaviour(
             }
         }
 
-        LaunchedEffect(isEnabled) {
+        LaunchedEffect(snapHeight, isEnabled) {
             launch {
                 if (!snapAreaState.isExpanded && scrollState.value < snapAreaState.snapAreaHeight) {
                     val isZero1 = snapAreaState.scrollPosition.value == 0
@@ -433,17 +440,21 @@ fun Modifier.snapScrollAreaBehaviour(
             launch {
                 snapshotFlow { snapAreaStateOut }.collectLatest {
                     when (it) {
-                        CollapsibleAreaValue.Expanded -> scrollState.animateScrollTo(
-                            0,
-                            ScrollSnapSpec
-                        )
+                        CollapsibleAreaValue.Expanded -> {
+                            snapAreaState.notifySnapping(true)
+                            scrollState.animateScrollTo(0, ScrollSnapSpec)
+                            snapAreaState.notifySnapping(false)
+                        }
 
-                        CollapsibleAreaValue.Collapsed -> scrollState.animateScrollTo(
-                            snapHeight.roundToInt(),
-                            ScrollSnapSpec
-                        )
+                        CollapsibleAreaValue.Collapsed -> {
+                            snapAreaState.notifySnapping(true)
+                            scrollState.animateScrollTo(snapHeight.roundToInt(), ScrollSnapSpec)
+                            snapAreaState.notifySnapping(false)
+                        }
 
-                        CollapsibleAreaValue.Neutral -> Unit
+                        CollapsibleAreaValue.Neutral -> {
+                            snapAreaState.notifySnapping(false)
+                        }
                     }
                 }
             }
