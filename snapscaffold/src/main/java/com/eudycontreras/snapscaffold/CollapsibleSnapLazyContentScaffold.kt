@@ -1,5 +1,7 @@
 package com.eudycontreras.snapscaffold
 
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
@@ -11,7 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -46,13 +52,13 @@ import kotlin.math.roundToInt
  *
  * @param snapAreaHeight The height of the collapsible snap area.
  * @param isSnapEnabled Flag to enable or disable snapping behavior.
- * @param listState The [LazyListState] object to be used for tracking scroll position.
+ * @param scrollable The [ScrollableState] object to be used for tracking scroll position.
  */
 @Stable
-class SnapLazyScrollAreaState(
+class SnapLazyScrollAreaState<T: ScrollableState>(
     snapAreaHeight: Float,
     isSnapEnabled: Boolean,
-    val listState: LazyListState,
+    val scrollable: T,
 ) {
 
     /**
@@ -76,8 +82,14 @@ class SnapLazyScrollAreaState(
      * Otherwise, it maps the scroll offset within the range [0f, 1f] based on the snap area height.
      */
     val scrollOffset: Float by derivedStateOf {
-        val index = listState.firstVisibleItemIndex
-        val offset = listState.firstVisibleItemScrollOffset
+        val (index, offset) = scrollable.let {
+            when (it) {
+                is LazyListState -> it.firstVisibleItemIndex to it.firstVisibleItemScrollOffset
+                is LazyGridState -> it.firstVisibleItemIndex to it.firstVisibleItemScrollOffset
+                is LazyStaggeredGridState -> it.firstVisibleItemIndex to it.firstVisibleItemScrollOffset
+                else -> throw UnsupportedScrollableStateException()
+            }
+        }
         val mapped = mapRangeBounded(offset.f, MIN_OFFSET, this.snapAreaHeight)
         if (index > 0) MAX_OFFSET else mapped.coerceIn(MIN_OFFSET, MAX_OFFSET)
     }
@@ -104,20 +116,20 @@ class SnapLazyScrollAreaState(
 /**
  * Creates and remembers a [SnapLazyScrollAreaState].
  *
- * @param listState The [LazyListState] object to be used for tracking scroll position.
+ * @param scrollable The [ScrollableState] object to be used for tracking scroll position.
  * @param initialSnapHeight The initial height of the snap area.
  * @param isSnapEnabled Flag to enable or disable snapping behavior.
  * @return [SnapLazyScrollAreaState] object to manage snap behavior.
  */
 @Composable
-fun rememberSnapLazyScrollAreaState(
-    listState: LazyListState = rememberLazyListState(),
+fun <T: ScrollableState> rememberSnapLazyScrollAreaState(
+    scrollable: T,
     initialSnapHeight: Dp = 1.dp,
     isSnapEnabled: Boolean = true
-): SnapLazyScrollAreaState {
+): SnapLazyScrollAreaState<T> {
     val height = with(LocalDensity.current) { initialSnapHeight.toPx() }
-    return remember(initialSnapHeight, listState) {
-        SnapLazyScrollAreaState(height, isSnapEnabled, listState)
+    return remember(initialSnapHeight, scrollable) {
+        SnapLazyScrollAreaState(height, isSnapEnabled, scrollable)
     }
 }
 
@@ -125,7 +137,7 @@ fun rememberSnapLazyScrollAreaState(
  * Interface representing the scope for a lazy scrollable area with collapsible snap behavior.
  * It provides access to properties and functions related to the snap behavior.
  */
-interface SnapLazyScrollAreaScope {
+interface SnapLazyScrollAreaScope<LazyItemScope> {
     /**
      * The height of the snap area, in pixels.
      * This property represents the height of the collapsible area that will snap during scroll interactions.
@@ -143,29 +155,43 @@ interface SnapLazyScrollAreaScope {
      * This function allows the addition of a padding item at the top of the list,
      * which acts as a collapsible header that collapses and expands along with the snap behavior.
      *
-     * @param scope The [LazyListScope] to add the collapsible header padding item to.
+     * @param scope The [LazyItemScope] to add the collapsible header padding item to.
      */
-    fun collapsibleHeaderPaddingItem(scope: LazyListScope)
+    fun collapsibleHeaderPaddingItem(scope: LazyItemScope)
 }
 
 /**
  * Receiver scope which is used by CollapsibleScaffold.
  */
-private class SnapLazyScrollAreaScopeImpl(
-    private val snapAreaScrollState: SnapLazyScrollAreaState
-) : SnapLazyScrollAreaScope {
+private class SnapLazyScrollAreaScopeImpl<T: ScrollableState, LazyItemScope>(
+    private val snapAreaScrollState: SnapLazyScrollAreaState<T>
+) : SnapLazyScrollAreaScope<LazyItemScope> {
     override val snapHeight: Float
         get() = snapAreaScrollState.snapAreaHeight
 
     override val scrollOffset: Float
         get() = snapAreaScrollState.scrollOffset
 
-    override fun collapsibleHeaderPaddingItem(scope: LazyListScope) = with(scope) {
-        item {
-            val height = with(LocalDensity.current) { snapHeight.toDp() }
-            Spacer(
-                modifier = Modifier.height(height = height)
-            )
+    override fun collapsibleHeaderPaddingItem(scope: LazyItemScope) = with(scope) {
+        when (this) {
+            is LazyListScope -> item {
+                val height = with(LocalDensity.current) { snapHeight.toDp() }
+                Spacer(
+                    modifier = Modifier.height(height = height)
+                )
+            }
+            is LazyGridScope -> item(span = { GridItemSpan(maxLineSpan) }) {
+                val height = with(LocalDensity.current) { snapHeight.toDp() }
+                Spacer(
+                    modifier = Modifier.height(height = height)
+                )
+            }
+            is LazyStaggeredGridScope -> item {
+                val height = with(LocalDensity.current) { snapHeight.toDp() }
+                Spacer(
+                    modifier = Modifier.height(height = height)
+                )
+            }
         }
     }
 }
@@ -188,16 +214,16 @@ private class SnapLazyScrollAreaScopeImpl(
  * @param content The composable function for the main content of the scaffold.
  */
 @Composable
-fun CollapsibleSnapContentLazyScaffold(
+fun <T: ScrollableState, LazyItemScope> CollapsibleSnapContentLazyScaffold(
     modifier: Modifier = Modifier,
-    snapAreaState: SnapLazyScrollAreaState,
+    snapAreaState: SnapLazyScrollAreaState<T>,
     topBar: @Composable () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
     stickyHeader: @Composable () -> Unit = {},
     collapsibleArea: @Composable BoxScope.() -> Unit,
-    content: @Composable SnapLazyScrollAreaScope.(PaddingValues) -> Unit,
+    content: @Composable SnapLazyScrollAreaScope<LazyItemScope>.(PaddingValues) -> Unit,
 ) {
-    val snapScope = remember(snapAreaState) { SnapLazyScrollAreaScopeImpl(snapAreaState) }
+    val snapScope = remember(snapAreaState) { SnapLazyScrollAreaScopeImpl<T, LazyItemScope>(snapAreaState) }
 
     CollapsibleSnapContentLazyScaffoldLayout(
         modifier = modifier.fillMaxSize(),
@@ -222,9 +248,9 @@ fun CollapsibleSnapContentLazyScaffold(
 
 @Composable
 @UiComposable
-private fun CollapsibleSnapContentLazyScaffoldLayout(
+private fun <T: ScrollableState> CollapsibleSnapContentLazyScaffoldLayout(
     modifier: Modifier,
-    state: SnapLazyScrollAreaState,
+    state: SnapLazyScrollAreaState<T>,
     topBar: @Composable @UiComposable () -> Unit,
     stickyHeader: @Composable @UiComposable () -> Unit,
     collapsibleArea: @Composable @UiComposable () -> Unit,
@@ -305,15 +331,23 @@ private enum class LazyScaffoldContent {
  * @param snapAreaState The state object containing information about the scroll behavior and snap area configuration.
  * @return A modifier with the snap behavior applied to the lazy scrollable list.
  */
-fun Modifier.snapLazyScrollAreaBehaviour(
-    snapAreaState: SnapLazyScrollAreaState,
+fun <T: ScrollableState> Modifier.snapLazyScrollAreaBehaviour(
+    snapAreaState: SnapLazyScrollAreaState<T>,
 ): Modifier {
     return this.composed {
         val snapHeight = snapAreaState.snapAreaHeight
-        val listState = snapAreaState.listState
+        val scrollable = snapAreaState.scrollable
         val allowSnapping = remember { mutableStateOf(value = false) }
-        val scrollDirection by listState.scrollDirection
-        val isDragged by listState.interactionSource.collectIsDraggedAsState()
+        val scrollDirection by scrollable.scrollDirection
+        val isDragged by scrollable.let {
+            when (it) {
+                is ScrollState -> it.interactionSource
+                is LazyListState -> it.interactionSource
+                is LazyGridState -> it.interactionSource
+                is LazyStaggeredGridState -> it.interactionSource
+                else -> throw UnsupportedScrollableStateException()
+            }
+        }.collectIsDraggedAsState()
 
         val nestedScrollConnection = remember {
             object : NestedScrollConnection {
@@ -368,11 +402,19 @@ fun Modifier.snapLazyScrollAreaBehaviour(
 
         LaunchedEffect(snapHeight) {
             snapshotFlow { snapAreaStateOut }.collectLatest {
-                if (listState.firstVisibleItemIndex <= 0) {
-                    val current = listState.firstVisibleItemScrollOffset.f
+                val (index, offset) = scrollable.let { state ->
+                    when (state) {
+                        is LazyListState -> state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset
+                        is LazyGridState -> state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset
+                        is LazyStaggeredGridState -> state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset
+                        else -> throw UnsupportedScrollableStateException()
+                    }
+                }
+                if (index <= 0) {
+                    val current = offset.f
                     when (it) {
-                        CollapsibleAreaValue.Expanded -> listState.animateScrollBy(-current, ScrollSnapSpec)
-                        CollapsibleAreaValue.Collapsed -> listState.animateScrollBy((snapHeight - current.absoluteValue), ScrollSnapSpec)
+                        CollapsibleAreaValue.Expanded -> scrollable.animateScrollBy(-current, ScrollSnapSpec)
+                        CollapsibleAreaValue.Collapsed -> scrollable.animateScrollBy((snapHeight - current.absoluteValue), ScrollSnapSpec)
                         CollapsibleAreaValue.Neutral -> Unit
                     }
                 }

@@ -4,11 +4,16 @@ import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
@@ -28,33 +33,24 @@ internal enum class ScrollDirection {
 }
 
 @Stable
-internal val ScrollState.scrollDirection: State<ScrollDirection>
+internal val ScrollableState.scrollDirection: State<ScrollDirection>
     @Composable get() {
         val scrollDirection = remember { mutableStateOf(ScrollDirection.None) }
+        val value by remember {
+            derivedStateOf {
+                when (this) {
+                    is ScrollState -> value
+                    is LazyListState -> firstVisibleItemScrollOffset.absoluteValue
+                    is LazyGridState -> firstVisibleItemScrollOffset.absoluteValue
+                    is LazyStaggeredGridState -> firstVisibleItemScrollOffset.absoluteValue
+                    else -> throw UnsupportedScrollableStateException()
+                }
+            }
+        }
         LaunchedEffect(Unit) {
             launch {
                 var lastScrollPosition = value
                 snapshotFlow { value }.collectLatest {
-                    scrollDirection.value = if (it > lastScrollPosition) {
-                        ScrollDirection.Down
-                    } else if (it < lastScrollPosition) {
-                        ScrollDirection.Up
-                    } else ScrollDirection.None
-                    lastScrollPosition = it
-                }
-            }
-        }
-        return scrollDirection
-    }
-
-@Stable
-internal val LazyListState.scrollDirection: State<ScrollDirection>
-    @Composable get() {
-        val scrollDirection = remember { mutableStateOf(ScrollDirection.None) }
-        LaunchedEffect(Unit) {
-            launch {
-                var lastScrollPosition = firstVisibleItemScrollOffset.absoluteValue
-                snapshotFlow { firstVisibleItemScrollOffset.absoluteValue }.collectLatest {
                     scrollDirection.value = if (it > lastScrollPosition) {
                         ScrollDirection.Down
                     } else if (it < lastScrollPosition) {

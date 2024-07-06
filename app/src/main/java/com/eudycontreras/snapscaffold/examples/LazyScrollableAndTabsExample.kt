@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -45,9 +48,9 @@ val tabs = listOf("One", "Two")
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun ScaffoldScreenScrollTabsState() {
+internal fun ScaffoldScreenScrollTabs() {
     val coroutineScope = rememberCoroutineScope()
-    val snapAreaState = rememberSnapLazyScrollAreaState()
+    val snapAreaState = rememberSnapLazyScrollAreaState(rememberLazyListState())
     val pagerState = rememberPagerState { tabs.size }
 
     CollapsibleSnapContentLazyScaffold(
@@ -78,9 +81,9 @@ internal fun ScaffoldScreenScrollTabsState() {
             LaunchedEffect(pagerState.currentPage) {
                 val position = positions.getValue(pagerState.currentPage)
                 if (positions.values.any { it.first >= 1 }) {
-                    snapAreaState.listState.scrollToItem(maxOf(position.first, 1), position.second)
+                    snapAreaState.scrollable.scrollToItem(maxOf(position.first, 1), position.second)
                 } else {
-                    snapAreaState.listState.scrollToItem(position.first, position.second)
+                    snapAreaState.scrollable.scrollToItem(position.first, position.second)
                 }
             }
             TabRow(
@@ -101,7 +104,7 @@ internal fun ScaffoldScreenScrollTabsState() {
                         selected = index == pagerState.currentPage,
                         onClick = { coroutineScope.launch {
                             positions[pagerState.currentPage] =
-                                snapAreaState.listState.firstVisibleItemIndex to snapAreaState.listState.firstVisibleItemScrollOffset
+                                snapAreaState.scrollable.firstVisibleItemIndex to snapAreaState.scrollable.firstVisibleItemScrollOffset
                             pagerState.animateScrollToPage(index)
                         } }
                     ) {
@@ -127,8 +130,8 @@ internal fun ScaffoldScreenScrollTabsState() {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SnapLazyScrollAreaScope.TabbedNestedScrollContent(
-    snapAreaState: SnapLazyScrollAreaState,
+private fun SnapLazyScrollAreaScope<LazyListScope>.TabbedNestedScrollContent(
+    snapAreaState: SnapLazyScrollAreaState<LazyListState>,
     pagerState: PagerState,
     bottomBarPadding: PaddingValues
 ) {
@@ -137,7 +140,7 @@ private fun SnapLazyScrollAreaScope.TabbedNestedScrollContent(
             0 -> {
                 LazyColumn(
                     modifier = Modifier.snapLazyScrollAreaBehaviour(snapAreaState = snapAreaState),
-                    state = snapAreaState.listState,
+                    state = snapAreaState.scrollable,
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     content = {
                         collapsibleHeaderPaddingItem(this)
@@ -159,11 +162,11 @@ private fun SnapLazyScrollAreaScope.TabbedNestedScrollContent(
             1 -> {
                 LazyColumn(
                     modifier = Modifier.snapLazyScrollAreaBehaviour(snapAreaState = snapAreaState),
-                    state = snapAreaState.listState,
+                    state = snapAreaState.scrollable,
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     content = {
                         collapsibleHeaderPaddingItem(this)
-                        items(20) {
+                        items(80) {
                             Box(
                                 modifier = Modifier
                                     .height(80.dp)
@@ -185,6 +188,6 @@ private fun SnapLazyScrollAreaScope.TabbedNestedScrollContent(
 @Composable
 private fun ScaffoldScreenPreview() {
     SnapscaffoldTheme {
-        ScaffoldScreenScrollTabsState()
+        ScaffoldScreenScrollTabs()
     }
 }

@@ -3,12 +3,14 @@ package com.eudycontreras.snapscaffold.examples
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -26,8 +28,8 @@ import com.eudycontreras.snapscaffold.ui.theme.Purple40
 import com.eudycontreras.snapscaffold.ui.theme.SnapscaffoldTheme
 
 @Composable
-internal fun ScaffoldScreenLazyScroll() {
-    val snapAreaState = rememberSnapLazyScrollAreaState(rememberLazyListState())
+internal fun ScaffoldScreenLazyGrid() {
+    val snapAreaState = rememberSnapLazyScrollAreaState(rememberLazyGridState())
 
     CollapsibleSnapContentLazyScaffold(
         snapAreaState = snapAreaState,
@@ -71,19 +73,19 @@ internal fun ScaffoldScreenLazyScroll() {
             )
         },
     ) {
-        LazyColumn(
-            modifier = Modifier.snapLazyScrollAreaBehaviour(snapAreaState = snapAreaState),
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxWidth().snapLazyScrollAreaBehaviour(snapAreaState = snapAreaState),
             state = snapAreaState.scrollable,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             content = {
                 collapsibleHeaderPaddingItem(this)
                 items(20) {
                     Box(
                         modifier = Modifier
                             .height(80.dp)
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .fillMaxWidth()
                             .shadow(1.dp, shape = RoundedCornerShape(16.dp))
                             .background(Purple100, RoundedCornerShape(16.dp))
                     )
@@ -98,6 +100,6 @@ internal fun ScaffoldScreenLazyScroll() {
 @Composable
 private fun ScaffoldLazyScreenPreview() {
     SnapscaffoldTheme {
-        ScaffoldScreenLazyScroll()
+        ScaffoldScreenLazyGrid()
     }
 }

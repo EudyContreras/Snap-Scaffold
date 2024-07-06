@@ -27,7 +27,7 @@ import com.eudycontreras.snapscaffold.ui.theme.SnapscaffoldTheme
 
 
 @Composable
-internal fun ScaffoldScreenScrollState() {
+internal fun ScaffoldScreenScroll() {
     val scrollState = rememberScrollState()
     val snapAreaState = rememberSnapScrollAreaState()
     CollapsibleSnapContentScaffold(
@@ -100,6 +100,6 @@ internal fun ScaffoldScreenScrollState() {
 @Composable
 private fun ScaffoldScreenPreview() {
     SnapscaffoldTheme {
-        ScaffoldScreenScrollState()
+        ScaffoldScreenScroll()
     }
 }
